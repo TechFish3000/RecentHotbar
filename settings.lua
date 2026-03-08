@@ -20,6 +20,12 @@ data:extend({
     },
     {
         type = "bool-setting",
+        name = "do-ghosts-in-hotbar",
+        setting_type = "runtime-per-user",
+        default_value = true
+    },
+    {
+        type = "bool-setting",
         name = "sort-rl",
         setting_type = "runtime-per-user",
         default_value = false
