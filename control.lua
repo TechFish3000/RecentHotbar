@@ -30,7 +30,8 @@ function scroll(event)
     -- whether the mod setting to add ghosts is enabled
     local shouldAddGhosts = settings.get_player_settings(player)["do-ghosts-in-hotbar"].value
 
-
+    -- whether we should be sorting in place instead of scrolling
+    local sortInPlace = settings.get_player_settings(player)["sort-inplace"].value
 
     -- if this was a ghost pipette but the user doesn't want ghosts added then return
     if useGhost and not shouldAddGhosts then
@@ -79,6 +80,7 @@ function scroll(event)
 
     local selected = nil
 
+    -- find first empty slot or slot with the exact same item we are pipetting
     for num = startIndex, endIndex, direction do
 
         if not useGhost then
@@ -91,40 +93,80 @@ function scroll(event)
             end
         end
     end
+    
+    -- then fill slots
 
-    -- if there was no holes to fill then start from the given end
-    if selected == nil and left_right then
-        selected = 10
-    elseif selected == nil and right_left then
-        selected = 1
-    end
+    if (not sortInPlace) then
 
-    if left_right then
-        startIndex = selected
-        endIndex = 2
-        direction = -1
-    elseif right_left then
-        startIndex = selected
-        endIndex = 9
-        direction = 1
-    end
-
-    for num = startIndex, endIndex, direction do
-        player.set_quick_bar_slot(num + hotbar_offset, player.get_quick_bar_slot((num + direction) + hotbar_offset))
-    end
-
-    if left_right then
-        if not useGhost then
-            player.set_quick_bar_slot(1 + hotbar_offset, player.cursor_stack)
-        else
-            player.set_quick_bar_slot(1 + hotbar_offset, player.cursor_ghost)
+        -- if there was no holes to fill then start from the given end
+        if selected == nil and left_right then
+            selected = 10
+        elseif selected == nil and right_left then
+            selected = 1
         end
-    elseif right_left then
-        if not useGhost then
-            player.set_quick_bar_slot(10 + hotbar_offset, player.cursor_stack)
-        else
-            player.set_quick_bar_slot(10 + hotbar_offset, player.cursor_ghost)
+
+        if left_right then
+            startIndex = selected
+            endIndex = 2
+            direction = -1
+        elseif right_left then
+            startIndex = selected
+            endIndex = 9
+            direction = 1
         end
+
+        for num = startIndex, endIndex, direction do
+            player.set_quick_bar_slot(num + hotbar_offset, player.get_quick_bar_slot((num + direction) + hotbar_offset))
+        end
+
+        if left_right then
+            if not useGhost then
+                player.set_quick_bar_slot(1 + hotbar_offset, player.cursor_stack)
+            else
+                player.set_quick_bar_slot(1 + hotbar_offset, player.cursor_ghost)
+            end
+        elseif right_left then
+            if not useGhost then
+                player.set_quick_bar_slot(10 + hotbar_offset, player.cursor_stack)
+            else
+                player.set_quick_bar_slot(10 + hotbar_offset, player.cursor_ghost)
+            end
+        end
+    else
+        --game.players[event.player_index].print("a")
+        -- if sorting in place
+        if (selected == nil) then
+            -- find which of the toolbar slots is the oldest
+
+            -- setup table if not existing
+            if (storage.playerToolbarTimes[event.player_index] == nil) then
+                for num = 1, 10 do
+                    storage.playerToolbarTimes[event.player_index][num] = game.ticks_played
+                end
+            end
+
+            local oldestIndex = 1
+            local lowestTick = storage.playerToolbarTimes[event.player_index][1]
+            for num = 1, 10 do
+                --game.players[event.player_index].print("b")
+                --game.players[event.player_index].print(storage.playerToolbarTimes[event.player_index][num])
+                if (storage.playerToolbarTimes[event.player_index][num] < lowestTick) then
+                    lowestTick = storage.playerToolbarTimes[event.player_index][num]
+                    oldestIndex = num
+                end
+            end
+            selected = oldestIndex
+            -- we now have the oldest slot index
+        end
+
+        slotToFill = selected
+
+        if not useGhost then
+            player.set_quick_bar_slot(slotToFill + hotbar_offset, player.cursor_stack)
+        else
+            player.set_quick_bar_slot(slotToFill + hotbar_offset, player.cursor_ghost)
+        end
+        storage.playerToolbarTimes[event.player_index][selected] = game.ticks_played
     end
 
 end
@@ -135,17 +177,63 @@ lastCursors = {}
 -- function to check for new things in each player's ghost cursor since it doesn't appear to fire an event when selecting a ghost from the hotbar
 function cursorCheck()
     for idx, player in pairs(game.players) do
-        if (player.cursor_ghost ~= lastCursors[idx] and player.cursor_ghost ~= nil) then
-            -- effectively just call the scroll function as if an event was fired
-            scroll({ player_index = idx, item = player.cursor_ghost })
+        if (player.cursor_ghost ~= nil) then
+            if (player.cursor_ghost.name ~= lastCursors[idx]) then
+                -- effectively just call the scroll function as if an event was fired
+                scroll({ player_index = idx, item = player.cursor_ghost })
+                --player.print("scrolled")
+                --if (lastCursors[idx] ~= nil) then
+                --    player.print(lastCursors[idx])
+                --end
+                --player.print(player.cursor_ghost.name)
+                
+            end
+            
         end
-        lastCursors[idx] = player.cursor_ghost
+        if player.cursor_ghost ~= nil then
+            lastCursors[idx] = player.cursor_ghost.name
+        else
+            lastCursors[idx] = nil
+        end
+       
     end
 
 end
+
+function recheckQuickbars(event)
+    if (not settings.get_player_settings(event.player_index)["sort-inplace"].value) then
+        return
+    end
+end
+
 
 script.on_event(defines.events.on_player_cursor_stack_changed, scroll)
 script.on_event(defines.events.on_tick, cursorCheck)
 
 --script.on_event(defines.events.on_player_pipette, scroll)
 -- I realised that with the new cursorCheck function that the logic would run twice if i also made it run for pipette which was a fix for the hotbar, so it's commented out 
+
+script.on_event(defines.events.on_player_set_quick_bar_slot, recheckQuickbars)
+
+script.on_init(function()
+    
+    storage.playerToolbarTimes = {}
+    
+    for idx, player in pairs(game.players) do
+        storage.playerToolbarTimes[idx] = {}
+        for num = 1, 10 do
+            storage.playerToolbarTimes[idx][num] = game.ticks_played
+        end
+    end
+end)
+
+script.on_event(defines.events.on_player_joined_game, function(ev)
+    
+    if (storage.playerToolbarTimes[ev.player_index] == nil) then
+        storage.playerToolbarTimes[ev.player_index] = {}
+            for num = 1, 10 do
+                storage.playerToolbarTimes[ev.player_index][num] = game.ticks_played
+            end
+        
+    end
+end)

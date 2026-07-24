@@ -29,5 +29,11 @@ data:extend({
         name = "sort-rl",
         setting_type = "runtime-per-user",
         default_value = false
+    },
+    {
+        type = "bool-setting",
+        name = "sort-inplace",
+        setting_type = "runtime-per-user",
+        default_value = false
     }
 })
