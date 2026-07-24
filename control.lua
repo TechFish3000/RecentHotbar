@@ -228,7 +228,9 @@ script.on_init(function()
 end)
 
 script.on_event(defines.events.on_player_joined_game, function(ev)
-    
+    if (storage.playerToolbarTimes == nil) then
+        storage.playerToolbarTimes = {}
+    end
     if (storage.playerToolbarTimes[ev.player_index] == nil) then
         storage.playerToolbarTimes[ev.player_index] = {}
             for num = 1, 10 do
