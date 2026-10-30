@@ -12,11 +12,14 @@ function scroll(event)
         return
     end
 
-    -- get whether to add items that aren't placeable 
+    -- get whether to add items that aren't placeable
     local do_items = settings.get_player_settings(player)["do-items-in-hotbar"].value
 
     -- get which hotbar to work in and use it to index
-    local hotbar_offset = (settings.get_player_settings(player)["working-hotbar"].value * 10) - 10
+    local working_hotbar = settings.get_player_settings(player)["working-hotbar"].value
+    if (working_hotbar == 0) then
+        working_hotbar = 10; -- more accurately reflect the hotbar numbering ingame
+    end
 
     -- get whether to sort right-left instead
     local right_left = settings.get_player_settings(player)["sort-rl"].value
@@ -48,7 +51,7 @@ function scroll(event)
     if (not useGhost) and player.cursor_stack.prototype.place_result == nil and (not do_items) then
         return
     end
-    
+
     -- if we pipette a non-placeable item ghost when we aren't adding non-placeables
     if useGhost and player.cursor_ghost.name.place_result == nil and (not do_items) then
         return
@@ -59,6 +62,19 @@ function scroll(event)
         return
     end
 
+    -- if its a temporary item like an unfilled blueprint or decon planner, skip
+    if player.cursor_stack_temporary then
+        return
+    end
+
+    -- make sure cursor is valid for reading
+    if (player.cursor_stack.valid_for_read) then
+        -- empty spidertron remotes cant be added to quickbar at all so skip them
+        if (player.cursor_stack.type == "spidertron-remote" and (player.spidertron_remote_selection == nil or #(player.spidertron_remote_selection) == 0)) then
+            return
+        end
+    end
+
     --log(player.cursor_stack.name) -- log the name for debugging
     --log(player.cursor_stack.count) -- log the count
 
@@ -66,38 +82,130 @@ function scroll(event)
     local endIndex = 1
     local direction = 1
 
+    -- figure out search directions
     if left_right then
         startIndex = 1
         endIndex = 10
         direction = 1
-
     elseif right_left then
         startIndex = 10
         endIndex = 1
         direction = -1
-
     end
 
     local selected = nil
 
     -- find first empty slot or slot with the exact same item we are pipetting
     for num = startIndex, endIndex, direction do
+        local slot = player.get_quick_bar_slot(working_hotbar, num) -- just in case it doesnt cache, take slightly less time
+        
+        -- found out why it broke so bad, turns out get_quick_bar_slot returns a slot now that contains a filter, instead of the filter itself
 
-        if not useGhost then
-            if (player.get_quick_bar_slot(num + hotbar_offset) == nil or (player.cursor_stack.name == player.get_quick_bar_slot(num + hotbar_offset).name and player.cursor_stack.quality.name == player.get_quick_bar_slot(num + hotbar_offset).quality)) and selected == nil then
-                selected = num
-            end
-        else
-            if (player.get_quick_bar_slot(num + hotbar_offset) == nil or (player.cursor_ghost.name.name == player.get_quick_bar_slot(num + hotbar_offset).name and player.cursor_ghost.quality.name == player.get_quick_bar_slot(num + hotbar_offset).quality)) and selected == nil then
-                selected = num
-            end
+        if (slot == nil) then
+            selected = num
+            break
         end
+
+        -- new slot types are a bit of a pain but do make a lot more sense ngl
+
+        if (slot.type == "remote") then -- if its a spidertron remote
+            if (slot.selection and player.cursor_stack.valid_for_read and player.cursor_stack.type == "spidertron-remote") then
+                -- compare if the two remotes refer to the same spiders, if so then its probably the same remote
+                local selectionA = slot.selection
+                local selectionB = player.spidertron_remote_selection
+                local same = true
+                local spiders = {}
+
+                if (#selectionA == #selectionB) then
+                    -- build seen list
+                    for _, spider in ipairs(selectionA) do
+                        spiders[spider.unit_number] = true
+                    end
+
+                    -- compare seen list
+                    for _, spider in ipairs(selectionB) do
+                        if not spiders[spider.unit_number] then
+                            same = false
+                            break
+                        end
+                    end
+                else
+                    same = false
+                end
+                if (same) then
+                    selected = num
+                    break
+                end
+            end
+
+        elseif (slot.type == "item") then -- if its a unique item (artillery designator or inventory blueprint)
+            if (slot.item.valid and player.cursor_stack.valid_for_read) then
+                -- compare their item_number which is basically a unique ID
+                if (slot.item.item_number ~= nil and slot.item.item_number == player.cursor_stack.item_number) then
+                    selected = num
+                    break
+                end
+            end
+        elseif (slot.type == "filter") then -- if its an item filter
+            
+            local slotFilter = slot.filter
+
+            -- if (slot ~= nil) then
+            --     player.print(slot)
+            --     player.print(slot.filter)
+            -- end
+
+            -- if this filter is empty somehow
+            if (slotFilter == nil) then
+                selected = num
+                break
+            end
+
+
+            -- whether its a ghost or not
+            if (not useGhost) then
+                -- if the cursor stack matches the slot stack item and quality
+                if (player.cursor_stack.name == slotFilter.name and player.cursor_stack.quality.name == slotFilter.quality) then
+                    selected = num
+                    break
+                end
+            else
+                -- if the cursor ghost matches the slot stack item and quality
+                if (player.cursor_ghost.name.name == slotFilter.name and player.cursor_ghost.quality.name == slotFilter.quality) then
+                    selected = num
+                    break
+                end
+            end
+        
+        end -- dont care about records, not sure how to implement them properly, maybe one day
+
+        -- old
+        -- if not useGhost then
+        --     if (slotFilter == nil or (player.cursor_stack.name == slotFilter.name and player.cursor_stack.quality.name == slotFilter.quality)) and selected == nil then
+        --         selected = num
+        --     end
+        -- else
+        --     if (slotFilter == nil or (player.cursor_ghost.name.name == slotFilter.name and player.cursor_ghost.quality.name == slotFilter.quality)) and selected == nil then
+        --         selected = num
+        --     end
+        -- end
     end
-    
+
+    -- if (selected == nil) then
+    --     player.print("Selected: nil")
+    -- else
+    --     player.print("Selected:" .. selected)
+    -- end
+
+    -- really wish lua had pythons ternary
+    -- couldve just been player.print("Selected:" .. "nil" if selected == nil else selected)
+    -- or even c's ternary
+    -- player.print("Selected: " .. selected == nil ? "nil" : selected)
+    -- one can dream of lua making sense
+
     -- then fill slots
 
     if (not sortInPlace) then
-
         -- if there was no holes to fill then start from the given end
         if selected == nil and left_right then
             selected = 10
@@ -105,6 +213,7 @@ function scroll(event)
             selected = 1
         end
 
+        -- figure out which direction to go
         if left_right then
             startIndex = selected
             endIndex = 2
@@ -115,21 +224,23 @@ function scroll(event)
             direction = 1
         end
 
+        -- shuffle stuff over
         for num = startIndex, endIndex, direction do
-            player.set_quick_bar_slot(num + hotbar_offset, player.get_quick_bar_slot((num + direction) + hotbar_offset))
+            player.set_quick_bar_slot(working_hotbar, num, player.get_quick_bar_slot(working_hotbar, (num + direction)))
         end
 
+        -- then set the first/last item to the new one
         if left_right then
             if not useGhost then
-                player.set_quick_bar_slot(1 + hotbar_offset, player.cursor_stack)
+                player.set_quick_bar_slot(working_hotbar, 1, player.cursor_stack)
             else
-                player.set_quick_bar_slot(1 + hotbar_offset, player.cursor_ghost)
+                player.set_quick_bar_slot(working_hotbar, 1, { type = "filter", filter = player.cursor_ghost })
             end
         elseif right_left then
             if not useGhost then
-                player.set_quick_bar_slot(10 + hotbar_offset, player.cursor_stack)
+                player.set_quick_bar_slot(working_hotbar, 10, player.cursor_stack)
             else
-                player.set_quick_bar_slot(10 + hotbar_offset, player.cursor_ghost)
+                player.set_quick_bar_slot(working_hotbar, 10, { type = "filter", filter = player.cursor_ghost })
             end
         end
     else
@@ -159,16 +270,15 @@ function scroll(event)
             -- we now have the oldest slot index
         end
 
-        slotToFill = selected
+        local slotToFill = selected
 
         if not useGhost then
-            player.set_quick_bar_slot(slotToFill + hotbar_offset, player.cursor_stack)
+            player.set_quick_bar_slot(working_hotbar, slotToFill, player.cursor_stack)
         else
-            player.set_quick_bar_slot(slotToFill + hotbar_offset, player.cursor_ghost)
+            player.set_quick_bar_slot(working_hotbar, slotToFill, { type = "filter", filter = player.cursor_ghost })
         end
         storage.playerToolbarTimes[event.player_index][selected] = game.ticks_played
     end
-
 end
 
 -- table of what every player had in their ghost cursor last frame
@@ -186,18 +296,14 @@ function cursorCheck()
                 --    player.print(lastCursors[idx])
                 --end
                 --player.print(player.cursor_ghost.name)
-                
             end
-            
         end
         if player.cursor_ghost ~= nil then
             lastCursors[idx] = player.cursor_ghost.name
         else
             lastCursors[idx] = nil
         end
-       
     end
-
 end
 
 function recheckQuickbars(event)
@@ -206,19 +312,17 @@ function recheckQuickbars(event)
     end
 end
 
-
 script.on_event(defines.events.on_player_cursor_stack_changed, scroll)
 script.on_event(defines.events.on_tick, cursorCheck)
 
 --script.on_event(defines.events.on_player_pipette, scroll)
--- I realised that with the new cursorCheck function that the logic would run twice if i also made it run for pipette which was a fix for the hotbar, so it's commented out 
+-- I realised that with the new cursorCheck function that the logic would run twice if i also made it run for pipette which was a fix for the hotbar, so it's commented out
 
 script.on_event(defines.events.on_player_set_quick_bar_slot, recheckQuickbars)
 
 script.on_init(function()
-    
     storage.playerToolbarTimes = {}
-    
+
     for idx, player in pairs(game.players) do
         storage.playerToolbarTimes[idx] = {}
         for num = 1, 10 do
@@ -233,9 +337,8 @@ script.on_event(defines.events.on_player_joined_game, function(ev)
     end
     if (storage.playerToolbarTimes[ev.player_index] == nil) then
         storage.playerToolbarTimes[ev.player_index] = {}
-            for num = 1, 10 do
-                storage.playerToolbarTimes[ev.player_index][num] = game.ticks_played
-            end
-        
+        for num = 1, 10 do
+            storage.playerToolbarTimes[ev.player_index][num] = game.ticks_played
+        end
     end
 end)

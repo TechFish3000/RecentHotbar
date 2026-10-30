@@ -10,7 +10,7 @@ data:extend({
         name = "working-hotbar",
         setting_type = "runtime-per-user",
         default_value = 1,
-        allowed_values = {1,2,3,4,5,6,7,8,9,10}
+        allowed_values = {1,2,3,4,5,6,7,8,9,0}
     },
     {
         type = "bool-setting",
