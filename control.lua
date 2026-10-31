@@ -104,97 +104,104 @@ function scroll(event)
     -- find first empty slot or slot with the exact same item we are pipetting
     for num = startIndex, endIndex, direction do
         local slot = player.get_quick_bar_slot(working_hotbar, num) -- just in case it doesnt cache, take slightly less time
-        
+
         -- found out why it broke so bad, turns out get_quick_bar_slot returns a slot now that contains a filter, instead of the filter itself
 
-        if (slot == nil) then
-            selected = num
-            break
-        end
+        if (slot ~= nil) then -- no longer selects an empty slot if the item is already present
+            -- new slot types are a bit of a pain but do make a lot more sense ngl
 
-        -- new slot types are a bit of a pain but do make a lot more sense ngl
+            if (slot.type == "remote") then -- if its a spidertron remote
+                if (slot.selection and player.cursor_stack.valid_for_read and player.cursor_stack.type == "spidertron-remote") then
+                    -- compare if the two remotes refer to the same spiders, if so then its probably the same remote
+                    local selectionA = slot.selection
+                    local selectionB = player.spidertron_remote_selection
+                    local same = true
+                    local spiders = {}
 
-        if (slot.type == "remote") then -- if its a spidertron remote
-            if (slot.selection and player.cursor_stack.valid_for_read and player.cursor_stack.type == "spidertron-remote") then
-                -- compare if the two remotes refer to the same spiders, if so then its probably the same remote
-                local selectionA = slot.selection
-                local selectionB = player.spidertron_remote_selection
-                local same = true
-                local spiders = {}
-
-                if (#selectionA == #selectionB) then
-                    -- build seen list
-                    for _, spider in ipairs(selectionA) do
-                        spiders[spider.unit_number] = true
-                    end
-
-                    -- compare seen list
-                    for _, spider in ipairs(selectionB) do
-                        if not spiders[spider.unit_number] then
-                            same = false
-                            break
+                    if (#selectionA == #selectionB) then
+                        -- build seen list
+                        for _, spider in ipairs(selectionA) do
+                            spiders[spider.unit_number] = true
                         end
+
+                        -- compare seen list
+                        for _, spider in ipairs(selectionB) do
+                            if not spiders[spider.unit_number] then
+                                same = false
+                                break
+                            end
+                        end
+                    else
+                        same = false
+                    end
+                    if (same) then
+                        selected = num
+                        break
+                    end
+                end
+            elseif (slot.type == "item") then -- if its a unique item (artillery designator or inventory blueprint)
+                if (slot.item.valid and player.cursor_stack.valid_for_read) then
+                    -- compare their item_number which is basically a unique ID
+                    if (slot.item.item_number ~= nil and slot.item.item_number == player.cursor_stack.item_number) then
+                        selected = num
+                        break
+                    end
+                end
+            elseif (slot.type == "filter") then -- if its an item filter
+                local slotFilter = slot.filter
+
+                -- if (slot ~= nil) then
+                --     player.print(slot)
+                --     player.print(slot.filter)
+                -- end
+
+                -- if this filter is empty somehow
+                if (slotFilter == nil) then
+                    selected = num
+                    break
+                end
+
+
+                -- whether its a ghost or not
+                if (not useGhost) then
+                    -- if the cursor stack matches the slot stack item and quality
+                    player.print("not ghost")
+                    if (player.cursor_stack.name == slotFilter.name and player.cursor_stack.quality.name == slotFilter.quality) then
+                        selected = num
+                        break
                     end
                 else
-                    same = false
+                    -- if the cursor ghost matches the slot stack item and quality
+                    player.print("ghost")
+                    if (player.cursor_ghost.name.name == slotFilter.name and player.cursor_ghost.quality.name == slotFilter.quality) then
+                        selected = num
+                        break
+                    end
                 end
-                if (same) then
-                    selected = num
-                    break
-                end
-            end
+            end -- dont care about records, not sure how to implement them properly, maybe one day
 
-        elseif (slot.type == "item") then -- if its a unique item (artillery designator or inventory blueprint)
-            if (slot.item.valid and player.cursor_stack.valid_for_read) then
-                -- compare their item_number which is basically a unique ID
-                if (slot.item.item_number ~= nil and slot.item.item_number == player.cursor_stack.item_number) then
-                    selected = num
-                    break
-                end
-            end
-        elseif (slot.type == "filter") then -- if its an item filter
-            
-            local slotFilter = slot.filter
-
-            -- if (slot ~= nil) then
-            --     player.print(slot)
-            --     player.print(slot.filter)
+            -- old
+            -- if not useGhost then
+            --     if (slotFilter == nil or (player.cursor_stack.name == slotFilter.name and player.cursor_stack.quality.name == slotFilter.quality)) and selected == nil then
+            --         selected = num
+            --     end
+            -- else
+            --     if (slotFilter == nil or (player.cursor_ghost.name.name == slotFilter.name and player.cursor_ghost.quality.name == slotFilter.quality)) and selected == nil then
+            --         selected = num
+            --     end
             -- end
+        end
+    end
 
-            -- if this filter is empty somehow
-            if (slotFilter == nil) then
+    -- if no items were already present then find the first empty slot instead
+    if (selected == nil) then
+        for num = startIndex, endIndex, direction do
+            local slot = player.get_quick_bar_slot(working_hotbar, num)
+            if (slot == nil) then
                 selected = num
                 break
             end
-
-
-            -- whether its a ghost or not
-            if (not useGhost) then
-                -- if the cursor stack matches the slot stack item and quality
-                if (player.cursor_stack.name == slotFilter.name and player.cursor_stack.quality.name == slotFilter.quality) then
-                    selected = num
-                    break
-                end
-            else
-                -- if the cursor ghost matches the slot stack item and quality
-                if (player.cursor_ghost.name.name == slotFilter.name and player.cursor_ghost.quality.name == slotFilter.quality) then
-                    selected = num
-                    break
-                end
-            end
-        
-        end -- dont care about records, not sure how to implement them properly, maybe one day
-
-        -- old
-        -- if not useGhost then
-        --     if (slotFilter == nil or (player.cursor_stack.name == slotFilter.name and player.cursor_stack.quality.name == slotFilter.quality)) and selected == nil then
-        --         selected = num
-        --     end
-        -- else
-        --     if (slotFilter == nil or (player.cursor_ghost.name.name == slotFilter.name and player.cursor_ghost.quality.name == slotFilter.quality)) and selected == nil then
-        --         selected = num
-        --     end
-        -- end
+        end
     end
 
     -- if (selected == nil) then
@@ -267,6 +274,9 @@ function scroll(event)
             for num = 1, QBWidth do
                 --game.players[event.player_index].print("b")
                 --game.players[event.player_index].print(storage.playerToolbarTimes[event.player_index][num])
+                if (storage.playerToolbarTimes[event.player_index][num] == nil) then        -- if the spot isnt existing, after having extended the bar manually
+                    storage.playerToolbarTimes[event.player_index][num] = game.ticks_played -- ensure it is existing
+                end
                 if (storage.playerToolbarTimes[event.player_index][num] < lowestTick) then
                     lowestTick = storage.playerToolbarTimes[event.player_index][num]
                     oldestIndex = num
