@@ -35,5 +35,11 @@ data:extend({
         name = "sort-inplace",
         setting_type = "runtime-per-user",
         default_value = false
+    },
+    {
+        type = "bool-setting",
+        name = "full-quickbar",
+        setting_type = "runtime-per-user",
+        default_value = true
     }
 })

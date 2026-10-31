@@ -75,6 +75,12 @@ function scroll(event)
         end
     end
 
+    local useFullQuickbar = settings.get_player_settings(player)["full-quickbar"].value
+    local QBWidth = 10
+    if (useFullQuickbar) then
+        QBWidth = player.quick_bar_width
+    end
+
     --log(player.cursor_stack.name) -- log the name for debugging
     --log(player.cursor_stack.count) -- log the count
 
@@ -85,10 +91,10 @@ function scroll(event)
     -- figure out search directions
     if left_right then
         startIndex = 1
-        endIndex = 10
+        endIndex = QBWidth
         direction = 1
     elseif right_left then
-        startIndex = 10
+        startIndex = QBWidth
         endIndex = 1
         direction = -1
     end
@@ -208,7 +214,7 @@ function scroll(event)
     if (not sortInPlace) then
         -- if there was no holes to fill then start from the given end
         if selected == nil and left_right then
-            selected = 10
+            selected = QBWidth
         elseif selected == nil and right_left then
             selected = 1
         end
@@ -220,7 +226,7 @@ function scroll(event)
             direction = -1
         elseif right_left then
             startIndex = selected
-            endIndex = 9
+            endIndex = QBWidth - 1
             direction = 1
         end
 
@@ -238,9 +244,9 @@ function scroll(event)
             end
         elseif right_left then
             if not useGhost then
-                player.set_quick_bar_slot(working_hotbar, 10, player.cursor_stack)
+                player.set_quick_bar_slot(working_hotbar, QBWidth, player.cursor_stack)
             else
-                player.set_quick_bar_slot(working_hotbar, 10, { type = "filter", filter = player.cursor_ghost })
+                player.set_quick_bar_slot(working_hotbar, QBWidth, { type = "filter", filter = player.cursor_ghost })
             end
         end
     else
@@ -251,14 +257,14 @@ function scroll(event)
 
             -- setup table if not existing
             if (storage.playerToolbarTimes[event.player_index] == nil) then
-                for num = 1, 10 do
+                for num = 1, QBWidth do
                     storage.playerToolbarTimes[event.player_index][num] = game.ticks_played
                 end
             end
 
             local oldestIndex = 1
             local lowestTick = storage.playerToolbarTimes[event.player_index][1]
-            for num = 1, 10 do
+            for num = 1, QBWidth do
                 --game.players[event.player_index].print("b")
                 --game.players[event.player_index].print(storage.playerToolbarTimes[event.player_index][num])
                 if (storage.playerToolbarTimes[event.player_index][num] < lowestTick) then
@@ -324,8 +330,13 @@ script.on_init(function()
     storage.playerToolbarTimes = {}
 
     for idx, player in pairs(game.players) do
+        local useFullQuickbar = settings.get_player_settings(player)["full-quickbar"].value
+        local QBWidth = 10
+        if (useFullQuickbar) then
+            QBWidth = player.quick_bar_width
+        end
         storage.playerToolbarTimes[idx] = {}
-        for num = 1, 10 do
+        for num = 1, QBWidth do
             storage.playerToolbarTimes[idx][num] = game.ticks_played
         end
     end
@@ -337,7 +348,12 @@ script.on_event(defines.events.on_player_joined_game, function(ev)
     end
     if (storage.playerToolbarTimes[ev.player_index] == nil) then
         storage.playerToolbarTimes[ev.player_index] = {}
-        for num = 1, 10 do
+        local useFullQuickbar = settings.get_player_settings(player)["full-quickbar"].value
+        local QBWidth = 10
+        if (useFullQuickbar) then
+            QBWidth = player.quick_bar_width
+        end
+        for num = 1, QBWidth do
             storage.playerToolbarTimes[ev.player_index][num] = game.ticks_played
         end
     end

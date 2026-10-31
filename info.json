@@ -1,9 +1,9 @@
 {
     "name": "RecentHotbar",
-    "version": "0.4.0",
+    "version": "0.4.1",
     "title": "RecentHotbar",
     "author": "TechFish3000",
     "factorio_version": "2.1",
     "dependencies": ["base >= 1.1", "? quality"],
-    "description": "Scrolls the hotbar with things you recently used. Now updated for 2.1, ghosts, Quality and Spidertron remotes!"
+    "description": "Scrolls the hotbar with things you recently used. Now updated for 2.1, extra width quickbars, ghosts, Quality, Spidertron remotes & more!"
   }
