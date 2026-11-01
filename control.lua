@@ -165,14 +165,14 @@ function scroll(event)
                 -- whether its a ghost or not
                 if (not useGhost) then
                     -- if the cursor stack matches the slot stack item and quality
-                    player.print("not ghost")
+                    -- player.print("not ghost")
                     if (player.cursor_stack.name == slotFilter.name and player.cursor_stack.quality.name == slotFilter.quality) then
                         selected = num
                         break
                     end
                 else
                     -- if the cursor ghost matches the slot stack item and quality
-                    player.print("ghost")
+                    -- player.print("ghost")
                     if (player.cursor_ghost.name.name == slotFilter.name and player.cursor_ghost.quality.name == slotFilter.quality) then
                         selected = num
                         break
@@ -358,10 +358,10 @@ script.on_event(defines.events.on_player_joined_game, function(ev)
     end
     if (storage.playerToolbarTimes[ev.player_index] == nil) then
         storage.playerToolbarTimes[ev.player_index] = {}
-        local useFullQuickbar = settings.get_player_settings(player)["full-quickbar"].value
+        local useFullQuickbar = settings.get_player_settings(game.players[ev.player_index])["full-quickbar"].value
         local QBWidth = 10
         if (useFullQuickbar) then
-            QBWidth = player.quick_bar_width
+            QBWidth = game.players[ev.player_index].quick_bar_width
         end
         for num = 1, QBWidth do
             storage.playerToolbarTimes[ev.player_index][num] = game.ticks_played
